@@ -376,16 +376,19 @@ class ProjectRelationshipBaseForm(forms.ModelForm):
 
     def clean_child(self):
         child = self.cleaned_data['child']
-
-        child.is_valid_as_subproject(
-            self.project, forms.ValidationError
-        )
+        if self.instance.pk is None:
+            child.is_valid_as_subproject(
+                self.project, forms.ValidationError
+            )
         return child
 
     def clean_alias(self):
         alias = self.cleaned_data['alias']
-        subproject = self.project.subprojects.filter(
-            alias=alias).exclude(id=self.instance.pk)
+        subproject = (
+            self.project.subprojects
+            .filter(alias=alias)
+            .exclude(id=self.instance.pk)
+        )
 
         if subproject.exists():
             raise forms.ValidationError(

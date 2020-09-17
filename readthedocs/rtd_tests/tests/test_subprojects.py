@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
-import django_dynamic_fixture as fixture
 from unittest import mock
+
+import django_dynamic_fixture as fixture
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.test.utils import override_settings
@@ -254,3 +254,72 @@ class SubprojectFormTests(TestCase):
             [proj_id for (proj_id, __) in form.fields['child'].choices],
             ['', relation.child.id],
         )
+
+    def test_change_alias(self):
+        user = fixture.get(User)
+        project = fixture.get(Project, users=[user])
+        subproject = fixture.get(Project, users=[user])
+        subproject_2 = fixture.get(Project, users=[user])
+        fixture.get(
+            ProjectRelationship,
+            parent=project,
+            child=subproject,
+            alias='subproject'
+        )
+        form = ProjectRelationshipForm(
+            {
+                'child': subproject_2.id,
+                'alias': 'another-subproject'
+            },
+            project=project,
+            user=user,
+        )
+        self.assertTrue(form.is_valid())
+        form.save()
+
+        relation = subproject_2.superprojects.first()
+
+        # Change alias to same alias
+        project.refresh_from_db()
+        relation.refresh_from_db()
+        form = ProjectRelationshipForm(
+            {
+                'child': subproject_2.id,
+                'alias': 'another-subproject'
+            },
+            instance=relation,
+            project=project,
+            user=user,
+        )
+        self.assertTrue(form.is_valid())
+        form.save()
+
+        # Change alias to an existing alias
+        project.refresh_from_db()
+        relation.refresh_from_db()
+        form = ProjectRelationshipForm(
+            {
+                'child': subproject_2.id,
+                'alias': 'subproject'
+            },
+            instance=relation,
+            project=project,
+            user=user,
+        )
+        self.assertFalse(form.is_valid())
+        error_msg = 'A subproject with this alias already exists'
+        self.assertDictEqual(form.errors, {'alias': [error_msg]})
+
+        # Change alias to a new alias
+        project.refresh_from_db()
+        relation.refresh_from_db()
+        form = ProjectRelationshipForm(
+            {
+                'child': subproject_2.id,
+                'alias': 'other-subproject'
+            },
+            instance=relation,
+            project=project,
+            user=user,
+        )
+        self.assertTrue(form.is_valid())
